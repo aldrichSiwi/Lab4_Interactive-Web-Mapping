@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Washington Covid Death Rate Map</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+
+    <!-- Including the Mapbox GL CSS file -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.5.0/mapbox-gl.css" rel="stylesheet">
+
+    <!-- Including the Mapbox GL JS file -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.5.0/mapbox-gl.js"></script>
+
+    <style>
+        /* CSS styles for heading and paragraphs */
+        h2,
+        h3 {
+            margin: 10px;
+            font-size: 18px;
+        }
+
+        h3 {
+            font-size: 16px;
+        }
+
+        p {
+            margin: 10px;
+        }
+
+        /**
+        * Create a position for the map
+        * on the page */
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /**
+        * Set rules for how the map overlays
+        * (information box and legend) will be displayed
+         on the page. */
+        .map-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            background: rgba(255, 255, 255, 0.8);
+            border-style: solid;
+            border-width: 1px;
+            border-color: rgba(0, 0, 0, 0.2);
+            margin-left: 20px;
+            font-family: Arial, sans-serif;
+            overflow: auto;
+            border-radius: 3px;
+        }
+
+        #features {
+            top: 0;
+            height: 120px;
+            margin-top: 20px;
+            width: 250px;
+        }
+
+        #legend {
+            padding: 10px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            line-height: 18px;
+            height: 210px;
+            margin-bottom: 40px;
+            width: 150px;
+        }
+
+        .legend-key {
+            display: inline-block;
+            border-radius: 20%;
+            width: 10px;
+            height: 10px;
+            margin-right: 5px;
+        }
+
+        .mapboxgl-canvas-container.mapboxgl-interactive,
+        .mapboxgl-ctrl-group button.mapboxgl-ctrl-compass {
+            cursor: unset;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <div class='map-overlay' id='features'>
+        <h2>Covid Death Rate in Washington</h2>
+        <div id='text-description'>
+            <p>Hover over a county!</p>
+        </div>
+    </div>
+    <div class='map-overlay' id='legend'></div>
+    <script>
+        // initialize basemmap
+        mapboxgl.accessToken =
+            'pk.eyJ1IjoiYWxzaXdpIiwiYSI6ImNtaGw0Y2ZpYzF4aDkybXB2cmdmMDB3MDYifQ.OyXk6TfoK0dtZP1NeEgtcA';
+        const map = new mapboxgl.Map({
+            container: 'map', // container ID
+            style: 'mapbox://styles/mapbox/light-v10', // style URL
+            zoom: 6.5, // starting zoom
+            center: [-120, 47.5] // starting center
+        });
+
+        // load data and add as layer
+        async function geojsonFetch() {
+            let response = await fetch('assets/wa-covid-data-102521.geojson');
+            let wa_data = await response.json();
+
+            map.on('load', function loadingData() {
+                map.addSource('wa_data', {
+                    type: 'geojson',
+                    data: wa_data
+                });
+
+                map.addLayer({
+                    'id': 'wa_data_layer',
+                    'type': 'fill',
+                    'source': 'wa_data',
+                    'paint': {
+                        'fill-color': [
+                            'step',
+                            ['get', 'deathPer10k'],
+                            '#f7fbff',   // stop_output_0
+                            4,          // stop_input_0
+                            '#deebf7',   // stop_output_1
+                            8,          // stop_input_1
+                            '#c6dbef',   // stop_output_2
+                            12,          // stop_input_2
+                            '#9ecae1',   // stop_output_3
+                            16,         // stop_input_3
+                            '#6baed6',   // stop_output_4
+                            20,         // stop_input_4
+                            '#4292c6',   // stop_output_5
+                            24,         // stop_input_5
+                            '#2171b5',   // stop_output_6
+                            28,        // stop_input_6
+                            "#084594"    // stop_output_7
+                        ],
+                        'fill-outline-color': '#000000',
+                        'fill-opacity': 1,
+                    }
+                });
+
+                const layers = [
+                    '0-3',
+                    '4-7',
+                    '8-11',
+                    '12-15',
+                    '16-19',
+                    '20-23',
+                    '24-27',
+                    '28 and more'
+                ];
+                const colors = [
+                    '#f7fbff',
+                    '#deebf7',
+                    '#c6dbef',
+                    '#9ecae1',
+                    '#6baed6',
+                    '#4292c6',
+                    '#2171b5',
+                    '#084594'
+                ];
+
+                // create legend
+                const legend = document.getElementById('legend');
+                legend.innerHTML = "<b>Death rate<br>(per 10k)</b><br><br>";
+
+
+                layers.forEach((layer, i) => {
+                    const color = colors[i];
+                    const item = document.createElement('div');
+                    const key = document.createElement('span');
+                    key.className = 'legend-key';
+                    key.style.backgroundColor = color;
+
+                    const value = document.createElement('span');
+                    value.innerHTML = `${layer}`;
+                    item.appendChild(key);
+                    item.appendChild(value);
+                    legend.appendChild(item);
+                });
+            });
+
+            map.on('mousemove', ({point}) => {
+                const county = map.queryRenderedFeatures(point, {
+                    layers: ['wa_data_layer']
+                });
+                document.getElementById('text-description').innerHTML = county.length ?
+                    `<h3>${county[0].properties.name}</h3><p><strong><em>${county[0].properties.deathPer10k}</strong> Death per 10k</em></p>` :
+                    `<p>Hover over a county!</p>`;
+            });
+        }
+
+        // Call the function to fetch GeoJSON data and load the map
+        geojsonFetch();
+    </script>
+
+</body>
+
+</html>
